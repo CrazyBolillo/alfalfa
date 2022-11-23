@@ -27,19 +27,6 @@
 #include "config.h"
 #include "lcd.h"
 
-
-#define button_up(button) (button & 0x01) != 0
-#define button_down(button) (button & 0x02) != 0
-#define button_set(button) (button & 0x04) != 0
-
-#define set_button_up(button) button |= 0x01
-#define set_button_down(button) button |= 0x02
-#define set_button_set(button) button |= 0x04
-
-#define clear_button_up(button) button &= 0xFE
-#define clear_button_down(button) button &= 0xFD
-#define clear_button_set(button) button &= 0xFB
-
 const char FREQ_VALUES_STR[41][4] = {
     "660", "661", "662", "663", "664", "665", "666", "667", "668", "669",
     "670", "671", "672", "673", "674", "675", "676", "677", "678", "679",
@@ -49,13 +36,21 @@ const char FREQ_VALUES_STR[41][4] = {
 };
 
 /**
- * Stores the action that was performed by the user.
- * Bit 0: Frequency UP
- * Bit 1: Frequency DOWN
- * Bit 2: Frequency SET
+ * Stores the UI state. De-bounce fields as the name implies are only used
+ * for de-bouncing and have no effect. Action fields are the fields which
+ * actually cause the UI to change when set.
+ * 
+ * Interrupts set de-bounce bits and the main loop de-bounces them and
+ * updates the UI accordingly.
  */
-uint8_t button_action = 0;
-uint8_t button_debounce = 0;
+struct {
+    uint8_t debounce_freq_up:   1;
+    uint8_t debounce_freq_down: 1;
+    uint8_t debounce_freq_set:  1;
+    uint8_t action_freq_up:     1;
+    uint8_t action_freq_down:   1;
+    uint8_t action_freq_set:    1;
+} ui_state;
 
 uint8_t ui_freq;
 
@@ -88,6 +83,15 @@ void main(void) {
     INTCON = 0x48;
     IOCAP = 0x07;
     
+    /**
+     * I2C configuration.
+     * MSSP enabled in I2C mode. 
+     * Master mode and clock rate of 100 kHz.
+     */
+    SSP1CON1 = 0x28;
+    SSP1CON2 = 0x00;
+    SSP1STAT = 0x00;
+    SSP1ADD  = 0x09;
     
     __delay_ms(50);
     lcd_init(0x0C);
@@ -101,62 +105,62 @@ void main(void) {
     
     INTCON |= 0x80;
     while(1) {
-        if (button_up(button_debounce)) {
+        if (ui_state.debounce_freq_up == 1) {
             __delay_ms(DEBOUNCE_WAIT);
             if (UP_BTN == 1) {
                 while (UP_BTN == 1);
-                set_button_up(button_action);
+                ui_state.action_freq_up = 1;
             }
-            clear_button_up(button_debounce);
+            ui_state.debounce_freq_up = 0;
         }
-        if (button_down(button_debounce)) {
+        if (ui_state.debounce_freq_down == 1) {
             __delay_ms(DEBOUNCE_WAIT);
             if (DOWN_BTN == 1) {
                 while (DOWN_BTN == 1);
-                set_button_down(button_action);
+                ui_state.action_freq_down = 1;
             }
-            clear_button_down(button_debounce);
+            ui_state.debounce_freq_down = 0;
         }
-        if (button_set(button_debounce)) {
+        if (ui_state.debounce_freq_set == 1) {
             __delay_ms(DEBOUNCE_WAIT);
             if (SET_BTN == 1) {
                 while (SET_BTN == 1);
-                set_button_set(button_action);
+                ui_state.action_freq_set = 1;
             }
-            clear_button_set(button_debounce);
+            ui_state.debounce_freq_set = 0;
         }
         
         
         
-        if ((button_action & 0x03) != 0) {
-            if (button_up(button_action)) {
-                if (ui_freq == 39)
+        if ((ui_state.action_freq_up == 1) || (ui_state.action_freq_down == 1)) {
+            if (ui_state.action_freq_up == 1) {
+                if (ui_freq == 40)
                     ui_freq = 0;
                 else
                     ui_freq++;
                 
-                clear_button_up(button_action);
+                ui_state.action_freq_up = 0;
             }
-            if (button_down(button_action)) {
+            if (ui_state.action_freq_down == 1) {
                 if (ui_freq == 0)
-                    ui_freq = 39;
+                    ui_freq = 40;
                 else
                     ui_freq--;
                 
-                clear_button_down(button_action);
+                ui_state.action_freq_down = 0;
             }
             
             lcd_move_cursor(0x48);
             lcd_write_string(FREQ_VALUES_STR[ui_freq]);
             lcd_write_string(" MHz");
         }
-        if (button_set(button_action)) {
+        if (ui_state.action_freq_set == 1) {
             lcd_move_cursor(0x5);
             lcd_write_string("40.");
             lcd_write_string(FREQ_VALUES_STR[ui_freq]);
             lcd_write_string(" MHz");
             
-            clear_button_set(button_action);
+            ui_state.action_freq_set = 0;
         }
     }
     
@@ -166,14 +170,14 @@ void main(void) {
 void __interrupt() handle_int(void) {
     if (UP_BTN_INT == 1) {
         UP_BTN_INT = 0;
-        button_debounce |= 0x01;
+        ui_state.debounce_freq_up = 1;
     }
     if (DOWN_BTN_INT == 1) {
         DOWN_BTN_INT = 0;
-        button_debounce |= 0x02;
+        ui_state.debounce_freq_down = 1;
     }
     if (SET_BTN_INT == 1) {
         SET_BTN_INT = 0;
-        button_debounce |= 0x04;
+        ui_state.debounce_freq_set = 1;
     }
 }
