@@ -26,6 +26,7 @@
 #include <xc.h>
 #include "config.h"
 #include "lcd.h"
+#include "i2c.h"
 
 const char FREQ_VALUES_STR[41][4] = {
     "660", "661", "662", "663", "664", "665", "666", "667", "668", "669",
@@ -50,11 +51,16 @@ struct {
     uint8_t action_freq_up:     1;
     uint8_t action_freq_down:   1;
     uint8_t action_freq_set:    1;
+    uint8_t i2c_error:          1;
 } ui_state;
 
 uint8_t ui_freq;
 
+void handle_clicks();
+
 void main(void) {
+    
+    ui_state.i2c_error = 1;
     
     /**
      * Clock configuration.
@@ -70,7 +76,7 @@ void main(void) {
     
     ANSELC = 0x00;
     LATC = 0x00;
-    TRISC = 0x00;
+    TRISC = 0x03;
     
     /**
      * Interrupt configuration. 
@@ -93,78 +99,98 @@ void main(void) {
     SSP1STAT = 0x00;
     SSP1ADD  = 0x09;
     
-    __delay_ms(50);
+    __delay_ms(10);
     lcd_init(0x0C);
     lcd_clear_display();
-    
-    lcd_write_string("CK0: OFF");
+    lcd_write_string("CK0: ");
     lcd_move_cursor(0x40);
     lcd_write_string("SET: 40.");
     lcd_write_string(FREQ_VALUES_STR[ui_freq]);
-    lcd_write_string(" MHz");
+    lcd_write_string(" MHz");    
+    lcd_move_cursor(0x05);
     
-    INTCON |= 0x80;
+    if ((ui_state.i2c_error = si5351_onbus()) == 0) {
+        lcd_write_string("OFF");
+        INTCONbits.GIE = 1;
+    }
+    else {
+        lcd_write_string("I2C ERROR");
+    }
+    
     while(1) {
-        if (ui_state.debounce_freq_up == 1) {
-            __delay_ms(DEBOUNCE_WAIT);
-            if (UP_BTN == 1) {
-                while (UP_BTN == 1);
-                ui_state.action_freq_up = 1;
-            }
-            ui_state.debounce_freq_up = 0;
+        if (ui_state.i2c_error == 0) {
+            handle_clicks();
         }
-        if (ui_state.debounce_freq_down == 1) {
-            __delay_ms(DEBOUNCE_WAIT);
-            if (DOWN_BTN == 1) {
-                while (DOWN_BTN == 1);
-                ui_state.action_freq_down = 1;
+        else {
+            if ((ui_state.i2c_error = si5351_onbus()) == 1) {
+                lcd_move_cursor(0x05);
+                lcd_write_string("OFF      ");
+                INTCONbits.GIE = 1;
             }
-            ui_state.debounce_freq_down = 0;
-        }
-        if (ui_state.debounce_freq_set == 1) {
-            __delay_ms(DEBOUNCE_WAIT);
-            if (SET_BTN == 1) {
-                while (SET_BTN == 1);
-                ui_state.action_freq_set = 1;
+            else {
+                __delay_ms(1000);
             }
-            ui_state.debounce_freq_set = 0;
-        }
-        
-        
-        
-        if ((ui_state.action_freq_up == 1) || (ui_state.action_freq_down == 1)) {
-            if (ui_state.action_freq_up == 1) {
-                if (ui_freq == 40)
-                    ui_freq = 0;
-                else
-                    ui_freq++;
-                
-                ui_state.action_freq_up = 0;
-            }
-            if (ui_state.action_freq_down == 1) {
-                if (ui_freq == 0)
-                    ui_freq = 40;
-                else
-                    ui_freq--;
-                
-                ui_state.action_freq_down = 0;
-            }
-            
-            lcd_move_cursor(0x48);
-            lcd_write_string(FREQ_VALUES_STR[ui_freq]);
-            lcd_write_string(" MHz");
-        }
-        if (ui_state.action_freq_set == 1) {
-            lcd_move_cursor(0x5);
-            lcd_write_string("40.");
-            lcd_write_string(FREQ_VALUES_STR[ui_freq]);
-            lcd_write_string(" MHz");
-            
-            ui_state.action_freq_set = 0;
         }
     }
     
     return;
+}
+
+void handle_clicks() {
+    if (ui_state.debounce_freq_up == 1) {
+        __delay_ms(DEBOUNCE_WAIT);
+        if (UP_BTN == 1) {
+            while (UP_BTN == 1);
+            ui_state.action_freq_up = 1;
+        }
+        ui_state.debounce_freq_up = 0;
+    }
+    if (ui_state.debounce_freq_down == 1) {
+        __delay_ms(DEBOUNCE_WAIT);
+        if (DOWN_BTN == 1) {
+            while (DOWN_BTN == 1);
+            ui_state.action_freq_down = 1;
+        }
+        ui_state.debounce_freq_down = 0;
+    }
+    if (ui_state.debounce_freq_set == 1) {
+        __delay_ms(DEBOUNCE_WAIT);
+        if (SET_BTN == 1) {
+            while (SET_BTN == 1);
+            ui_state.action_freq_set = 1;
+        }
+        ui_state.debounce_freq_set = 0;
+    }
+    if ((ui_state.action_freq_up == 1) || (ui_state.action_freq_down == 1)) {
+        if (ui_state.action_freq_up == 1) {
+            if (ui_freq == 40)
+                ui_freq = 0;
+            else
+                ui_freq++;
+
+            ui_state.action_freq_up = 0;
+        }
+        if (ui_state.action_freq_down == 1) {
+            if (ui_freq == 0)
+                ui_freq = 40;
+            else
+                ui_freq--;
+
+            ui_state.action_freq_down = 0;
+        }
+
+        lcd_move_cursor(0x48);
+        lcd_write_string(FREQ_VALUES_STR[ui_freq]);
+        lcd_write_string(" MHz");
+    }
+    if (ui_state.action_freq_set == 1) {
+        lcd_move_cursor(0x5);
+        lcd_write_string("40.");
+        lcd_write_string(FREQ_VALUES_STR[ui_freq]);
+        lcd_write_string(" MHz");
+
+        ui_state.action_freq_set = 0;
+    }
 }
 
 void __interrupt() handle_int(void) {
