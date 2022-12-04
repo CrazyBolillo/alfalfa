@@ -26,7 +26,7 @@
 #include <xc.h>
 #include "config.h"
 #include "lcd.h"
-#include "i2c.h"
+#include "si5351.h"
 
 const char FREQ_VALUES_STR[41][4] = {
     "660", "661", "662", "663", "664", "665", "666", "667", "668", "669",
@@ -34,6 +34,11 @@ const char FREQ_VALUES_STR[41][4] = {
     "680", "681", "682", "683", "684", "685", "686", "687", "688", "689",
     "690", "691", "692", "693", "694", "695", "696", "697", "698", "699",
     "700"
+};
+
+const uint8_t FREQ_VALUES_SI5351[41][16] = {
+    {0x02, 0x71, 0, 0x0F, 0xE3, 0, 0x02, 0x4D, 0, 0x01, 0, 0x09, 0, 0, 0, 0},
+    {0x30, 0xD4, 0, 0XF, 0xE4, 0, 0x02, 0xB0, 0, 0x01, 0, 0x9, 0, 0, 0, 0},
 };
 
 /**
@@ -52,11 +57,13 @@ struct {
     uint8_t action_freq_down:   1;
     uint8_t action_freq_set:    1;
     uint8_t i2c_error:          1;
+    uint8_t output_enable:      1;
 } ui_state;
 
 uint8_t ui_freq;
 
 void handle_clicks();
+void si5351_setup();
 
 void main(void) {
     
@@ -111,6 +118,7 @@ void main(void) {
     
     if ((ui_state.i2c_error = si5351_onbus()) == 0) {
         lcd_write_string("OFF");
+        si5351_setup();
         INTCONbits.GIE = 1;
     }
     else {
@@ -122,9 +130,10 @@ void main(void) {
             handle_clicks();
         }
         else {
-            if ((ui_state.i2c_error = si5351_onbus()) == 1) {
+            if ((ui_state.i2c_error = si5351_onbus()) == 0) {
                 lcd_move_cursor(0x05);
                 lcd_write_string("OFF      ");
+                si5351_setup();
                 INTCONbits.GIE = 1;
             }
             else {
@@ -188,9 +197,37 @@ void handle_clicks() {
         lcd_write_string("40.");
         lcd_write_string(FREQ_VALUES_STR[ui_freq]);
         lcd_write_string(" MHz");
+        
+        si5351_freqset(FREQ_VALUES_SI5351[ui_freq]);
 
+        if (ui_state.output_enable == 0) {
+            si5351_write(0x10, 0x0C);
+            si5351_write(0x03, 0xFE);
+            ui_state.output_enable = 1;
+        }
+        
         ui_state.action_freq_set = 0;
     }
+}
+
+/**
+ * Disable the output on all clocks and power them down. Setup CLK0 for its
+ * eventual use.
+ */
+void si5351_setup() {
+    si5351_write(0x03, 0xFF);
+    si5351_write(0x10, 0x8C); // CLK0 uses MS0 and has 2mA drive strength
+    si5351_write(0x11, 0x80);
+    si5351_write(0x12, 0x80);
+    si5351_write(0x95, 0x00); // Turn off Spread Spectrum
+    
+    /* 
+     * VXCO Parameters. X on reset. Only god knows why Clock Builder
+     * writes 0s to them. 
+     */
+    si5351_write(0xA2, 0x00);
+    si5351_write(0xA3, 0x00);
+    si5351_write(0xA4, 0x00);
 }
 
 void __interrupt() handle_int(void) {
