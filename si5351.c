@@ -3,6 +3,8 @@
 // Code can be improved. Time constraints forced me to do it. Sorry
 
 
+static const uint8_t SI5351_MS0[8] = {0, 0x01, 0, 0x09, 0, 0, 0, 0};
+
 /**
  * Signal an I2C start and write a slave's address to the I2C bus.
  * @param addr Slave's address in 8 bit mode (includes R/W bit.)
@@ -89,16 +91,14 @@ void si5351_outoff() {
     si5351_write(0x12, 0x80);
 }
 
-void si5351_freqset(const uint8_t values[16]) {
+void si5351_freqset(const uint8_t values[8]) {
     uint8_t addr = 0x1A;
     uint8_t count = 0;
     for(; count != 8; addr++, count++) {
-        uint8_t val = values[count];
-        si5351_write(addr, val);
+        si5351_write(addr, values[count]);
     }
     addr = 0x2A;
-    for(; count != 16; addr++, count++) {
-        uint8_t val = values[count];
-        si5351_write(addr, val);
+    for(count = 0; count != 8; addr++, count++) {
+        si5351_write(addr, SI5351_MS0[count]);
     }
 }
