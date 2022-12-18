@@ -1,30 +1,15 @@
 # .gitignore file
-
-# MPLAB X IDE (Netbeans) specific
-**/~*.*
-**/build/
-**/debug/
-**/dist/
-**/disassembly/
-**/.generated_files/
-**/nbproject/private/
-**/nbproject/*.mk
-**/nbproject/*.bash
-**/nbproject/Makefile-genesis.properties
-
-# Object files
-*.o
-*.ko
-*.obj
+# Files generated during compilation process
+*.hex
+*.hxl
 *.elf
-
-# Executables
-*.exe
-
-
-# KDE specific
-.directory
-
-# Misc
-.svn
-*.bak
+*.coff
+*.lst
+*.rlf
+*.s
+*.sym
+*.p1
+*.d
+*.cmf
+*.sdb
+*.o
