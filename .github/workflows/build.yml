@@ -1,0 +1,19 @@
+name: Build project
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: crazybolillo/microchip:xc8
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup
+        run: docker-entrypoint.sh
+      - name: Compile
+        run: build-check.sh
