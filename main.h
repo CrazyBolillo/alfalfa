@@ -19,7 +19,4 @@
 #define LCD_DATA_MASK_ON 0x3C
 #define LCD_DATA_MASK_OFF 0xC3
 
-
-
-
 #endif
