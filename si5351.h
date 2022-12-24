@@ -1,7 +1,7 @@
 #ifndef __I2C_GUARD__
 #define	__I2C_GUARD__
 
-#include <xc.h>
+#include <stdint.h>
 
 /** 
  * Defined as a 7 bit address.

@@ -1,7 +1,9 @@
+#include "lcd.h"
+
+#include <stdint.h>
 #include <xc.h>
 
-#include "config.h"
-#include "lcd.h"
+#include "main.h"
 
 void lcd_send(uint8_t rs, uint8_t value) {
     LCD_RS = rs;
@@ -16,10 +18,10 @@ void lcd_send(uint8_t rs, uint8_t value) {
 }
 
 /**
- * 
+ *
  * @param config
  */
-void lcd_init(uint8_t config) {    
+void lcd_init(uint8_t config) {
     lcd_send(0, 0x02);
     lcd_send(0, 0x28);
     lcd_send(0, config);
@@ -28,16 +30,12 @@ void lcd_init(uint8_t config) {
 }
 
 void lcd_write_string(char *string) {
-    while(*string != '\0') {
+    while (*string != '\0') {
         lcd_send(1, *string);
         string++;
     }
 }
 
-void lcd_move_cursor(uint8_t address) {
-    lcd_send(0, (0x80 | address));
-}
+void lcd_move_cursor(uint8_t address) { lcd_send(0, (0x80 | address)); }
 
-void lcd_clear_display(void) {
-    lcd_send(0, 0x01);
-}
+void lcd_clear_display(void) { lcd_send(0, 0x01); }
